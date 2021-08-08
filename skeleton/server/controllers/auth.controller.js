@@ -47,7 +47,7 @@ const signout = (req, res) => {
 
 const requireSignin = expressJwt({
     secret: config.jwtSecret,
-    algorithms: ['RS256'],
+    algorithms: ['HS256'],
     userProperty: "auth"
 }) // uses express-jwt to verify that the incoming request has a valid jwt in the Authorization header, if valid it appends the verified user's ID in a "auth" key
 

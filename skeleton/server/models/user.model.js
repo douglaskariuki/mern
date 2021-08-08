@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import * as bcrypt from "bcrypt";
 
 const UserSchema = new mongoose.Schema({
     name: {
@@ -22,32 +23,21 @@ const UserSchema = new mongoose.Schema({
         type: String,
         required: "Password is required"
     },
-    salt: String
+    salt: Number
 });
 
-UserSchema // password string provided by the user is not stored directly in user doc, it is handled as a virtual field
-    .virtual('password')
-    .set(function(password) {
-        this._password = password
-        this.salt = this.makeSalt()
-        this.hashed_password = this.encryptPassword(password)
-    })
-    .get(function() {
-        return this._password
-    })
-
 UserSchema.methods = {
-    authenticate: function(plainText) { // method is called to verify sign-in attempts by matching the user-provided password text with the hashed_password stored in the db
-        return this.encryptPassword(plainText) === this.hashed_password
+    authenticate: async function(plainText) { // method is called to verify sign-in attempts by matching the user-provided password text with the hashed_password stored in the db
+        const hash = await bcrypt.hash(plainText, this.salt)
+        return hash == this.hashed_password;
     },
 
-    encryptPassword: function(password) { // method is used to generate an encrypted hash from the plain-text password and a unique salt value
+    encryptPassword: async function(password) { // method is used to generate an encrypted hash from the plain-text password and a unique salt value
         if (!password) return ''
         try {
-            return crypto // crypto module from node
-                .createHmac('sha1', this.salt)
-                .update(password)
-                .digest('hex')
+            return await bcrypt
+                .hash(password, this.salt)
+
         } catch (err) {
             return ''
         }
@@ -58,9 +48,21 @@ UserSchema.methods = {
     }
 }
 
+UserSchema // password string provided by the user is not stored directly in user doc, it is handled as a virtual field
+    .virtual('password')
+    .set(function(password) {
+        this._password = password
+        this.salt = this.makeSalt()
+        this.hashed_password = toString(this.encryptPassword(password))
+        console.log("salt", this.salt, "password", this._password, "hash", this.hashed_password)
+    })
+    .get(function() {
+        return this._password
+    })
+
 // validation constraints to the actual password string selected by user
 UserSchema.path('hashed_password').validate(function(v) {
-    if (this._password && this._password.length < 6) { // ensure password value is provided and it has a length of atleast 6 characters
+    if (this._password && this._password.length < 6) {
         this.invalidate('password', 'Password must be at least 6 characters.')
     }
     if (this.isNew && !this._password) {
